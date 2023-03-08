@@ -14,4 +14,4 @@ const UsersSchema = new schema({
 
 const User = mongoos.model("User", UsersSchema, "UsersTable");
 
-module.exports = user;
+module.exports = User;
