@@ -1,9 +1,9 @@
-const User = require("../models/userSchema");
+const Login = require("../models/loginSchema");
 
 const login = (req, res, next) => {
   const { username, password, isAdmin } = req.body;
 
-  User.findOne({ username: username }, async (err, data) => {
+  Login.findOne({ username: username }, async (err, data) => {
     if (err) {
       console.log(err);
     } else {
@@ -33,6 +33,15 @@ const login = (req, res, next) => {
     });
 };
 
+const register = (req, res, next) => {
+  const { name, mail, password, year, course, phone, address } = req.body;
+  console.log("hi");
+  res.status(200).json({
+    received: "true",
+  });
+};
+
 module.exports = {
   login,
+  register,
 };
