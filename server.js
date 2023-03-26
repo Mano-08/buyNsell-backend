@@ -10,16 +10,15 @@ app.use(cors());
 
 mongoose.set("strictQuery", false);
 require("dotenv").config();
-mongoose.connect(`${process.env.ATLAS_KEY}`);
+app.use(express.urlencoded({ extended: false }));
+mongoose
+  .connect(`${process.env.ATLAS_KEY}`)
+  .then(console.log("connected to db"));
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, (req, res) => {
   console.log(`Server is running at port ${PORT}`);
-});
-
-app.get("/", (req, res) => {
-  res.send("<h1>hello</h1>");
 });
 
 app.use("/api", buyNsellRouter);
