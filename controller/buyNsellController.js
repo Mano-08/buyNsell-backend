@@ -4,12 +4,12 @@ const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
 const bcrypt = require("bcrypt");
 const Product = require("../models/products");
-const mongoose = require("mongoose");
+const Bid = require("../models/bid");
 const jwt = require("jsonwebtoken");
 const UserToken = require("../models/userToken");
 const verifyRefreshToken = require("../utils/verifyRefreshToken");
-
 const generateTokens = require("../utils/generateToken.js");
+
 const login = async (req, res) => {
   try {
     const user = await User.findOne({ mail: req.body.mail });
@@ -71,7 +71,7 @@ const register = async (req, res) => {
       userId: user._id,
       token: crypto.randomBytes(32).toString("hex"),
     }).save();
-    const url = `${process.env.BASE_URL}users/${user.id}/verify/${token.token}`;
+    const url = `Click this link to verify your email-id : ${process.env.BASE_URL}users/${user.id}/verify/${token.token}`;
     await sendEmail(user.mail, "Verification of Mail", url);
 
     res.status(201).send({
@@ -106,21 +106,48 @@ const verify = async (req, res) => {
 
 const token = async (req, res) => {
   verifyRefreshToken(req.body.token)
-    .then(({ tokenDetails }) => {
+    .then(async ({ tokenDetails }) => {
       const payload = { _id: tokenDetails._id, role: tokenDetails.role };
       const accessToken = jwt.sign(payload, process.env.JWTPRIVATEKEY, {
         expiresIn: "14m",
       });
-      res.status(200).json({
+      const allNotifications = await Bid.find({
+        sellerId: tokenDetails._id,
+      });
+      var findata = [];
+      for (let i = 0; i < allNotifications.length; i++) {
+        const { pimage, pname } = await Product.findById(
+          allNotifications[i].prodId
+        );
+        for (let j = 0; j < allNotifications[i].bids.length; j++) {
+          const { name } = await User.findById(
+            allNotifications[i].bids[j].buyerId
+          );
+          if (allNotifications[i].bids[j].cancel === false) {
+            findata.push({
+              prodId: allNotifications[i].prodId,
+              href: `/buy-product/${allNotifications[i].prodId}/${tokenDetails._id}/${allNotifications[i].bids[j].buyerId}`,
+              imageURL: pimage,
+              reg: name,
+              pname: pname,
+              bprice: allNotifications[i].bids[j].bidPrice,
+              cancel: allNotifications[i].bids[j].cancel,
+              bid: allNotifications[i].bids[j].buyerId,
+            });
+          }
+        }
+      }
+      res.status(200).send({
         error: false,
         userid: tokenDetails._id,
+        allNotifications: findata,
         role: tokenDetails.role,
         message: "Access token created successfully",
       });
     })
     .catch((err) => {
       console.log(err);
-      res.status(400).json(err);
+      res.status(400).send(err);
     });
 };
 
@@ -130,13 +157,36 @@ const delToken = async (req, res) => {
     if (!usertoken)
       return res
         .status(200)
-        .json({ error: false, message: "Logged Out Sucessfully" });
+        .send({ error: false, message: "Logged Out Sucessfully" });
 
     await usertoken.remove();
-    res.status(200).json({ error: false, message: "Logged Out Sucessfully" });
+    res.status(200).send({ error: false, message: "Logged Out Sucessfully" });
   } catch (err) {
     console.log(err);
-    res.status(500).json({ error: true, message: "Internal Server Error" });
+    res.status(500).send({ error: true, message: "Internal Server Error" });
+  }
+};
+
+const fixdeal = async (req, res) => {
+  try {
+    const { productid, sellerid, buyerid } = req.body;
+    console.log(productid, sellerid, buyerid);
+    const { pname, pprice, pimage } = await Product.findById(productid);
+    var findata = { pname: pname, productprice: pprice, pimage: pimage };
+    const biddata = await Bid.findOne({ prodId: productid });
+    for (let i = 0; i < biddata.bids.length; i++) {
+      if (biddata.bids[i].buyerId.toString() === buyerid) {
+        findata = { ...findata, bidprice: biddata.bids[i].bidPrice };
+        break;
+      }
+    }
+    const { name, mail } = await User.findById(buyerid);
+    findata = { ...findata, buyername: name };
+    findata = { ...findata, mail: mail };
+    res.status(200).send({ fixdeal: findata });
+  } catch (error) {
+    console.log(error);
+    res.status(300).send({ error: true });
   }
 };
 
@@ -144,12 +194,12 @@ const profile = async (req, res) => {
   try {
     const user = await User.findOne({ _id: req.body.id });
     if (!user) {
-      res.status(400).json({ error: true, message: "User not found" });
+      res.status(400).send({ error: true, message: "User not found" });
     }
-    res.status(200).json({ erro: false, data: user });
+    res.status(200).send({ erro: false, data: user });
   } catch (error) {
-    console.log(err);
-    res.status(400).json({ error: true });
+    console.log(error);
+    res.status(400).send({ error: true });
   }
 };
 
@@ -160,10 +210,10 @@ const delAcc = async (req, res) => {
     await UserToken.deleteOne({ userId: id });
     res
       .status(200)
-      .json({ error: false, message: "Account deleted Successfully" });
+      .send({ error: false, message: "Account deleted Successfully" });
   } catch (error) {
     console.log(error);
-    res.status(400).json({ error: true });
+    res.status(400).send({ error: true });
   }
 };
 
@@ -171,10 +221,10 @@ const logout = async (req, res) => {
   try {
     const id = req.body.id;
     await UserToken.deleteOne({ userId: id });
-    res.status(200).json({ error: false, message: "Logged out successfully" });
+    res.status(200).send({ error: false, message: "Logged out successfully" });
   } catch (error) {
     console.log(error);
-    res.status(400).json({ error: true });
+    res.status(400).send({ error: true });
   }
 };
 
@@ -183,20 +233,33 @@ const update = async (req, res) => {
     const newData = req.body.newData;
     const id = req.body.id;
     await User.updateOne({ _id: id }, newData);
-    res.status(200).json({ error: false, message: "Updated successfully" });
+    res.status(200).send({ error: false, message: "Updated successfully" });
   } catch (error) {
     console.log(error);
-    res.status(400).json({ error: true });
+    res.status(400).send({ error: true });
   }
 };
 
 const displayProd = async (req, res) => {
   try {
-    const data = await Product.find({});
-    res.status(200).json({ error: false, details: data });
+    const data = await Product.find({}).lean();
+    res.status(200).send({ error: false, details: data });
   } catch (error) {
     console.log("Error: ", error);
-    res.status(400).json({ error: true });
+    res.status(400).send({ error: true });
+  }
+};
+
+const prodData = async (req, res) => {
+  try {
+    const id = req.body.id;
+    console.log(id);
+    const data = await Product.findById(id);
+    const bid = await Bid.findOne({ prodId: id });
+    res.status(200).send({ error: false, details: { data, bid } });
+  } catch (error) {
+    console.log(error);
+    res.status(400).send({ error: true });
   }
 };
 
@@ -207,14 +270,145 @@ const sell = async (req, res) => {
     await Product.create(pdata);
     res
       .status(200)
-      .json({ error: false, message: "Product added successfully" });
+      .send({ error: false, message: "Product added successfully" });
   } catch (error) {
     console.log(error);
-    res.status(400).json({ error: true, message: "Product wasn't added" });
+    res.status(400).send({ error: true, message: "Product wasn't added" });
+  }
+};
+
+const addbid = async (req, res) => {
+  try {
+    const { biddata } = req.body;
+    const bidDataFromDB = await Bid.findOne({
+      prodId: biddata.pid,
+    });
+    const { mail } = await User.findById(biddata.buyerId);
+    const reg = mail.slice(0, 6);
+    if (!bidDataFromDB) {
+      const newData = {
+        prodId: biddata.pid,
+        sellerId: biddata.sellerId,
+        bids: [
+          {
+            buyerId: biddata.buyerId,
+            bidPrice: biddata.bidPrice,
+            bidTime: biddata.bidTime,
+            regno: reg,
+            cancel: false,
+          },
+        ],
+      };
+      await Bid.create(newData);
+    } else {
+      bidDataFromDB.bids.push({
+        buyerId: biddata.buyerId,
+        bidPrice: biddata.bidPrice,
+        bidTime: biddata.bidTime,
+        regno: reg,
+        cancel: false,
+      });
+      await Bid.updateOne(
+        { prodId: biddata.pid, sellerId: biddata.sellerId },
+        bidDataFromDB
+      );
+    }
+    const dataFromdb = await Bid.findOne({
+      prodId: biddata.pid,
+      sellerId: biddata.sellerId,
+    });
+    res.status(200).send({ details: { bid: dataFromdb } });
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+const removebid = async (req, res) => {
+  try {
+    const { productid, buyerId } = req.body;
+    var bid = await Bid.findOne({ prodId: productid });
+    console.log(bid, buyerId);
+    var arr = [];
+    for (let i = 0; i < bid.bids.length; i++) {
+      if (bid.bids[i].buyerId.toString() !== buyerId) {
+        console.log(
+          bid.bids[i].buyerId,
+          buyerId,
+          bid.bids[i].buyerId !== buyerId
+        );
+        arr.push(bid.bids[i]);
+      }
+    }
+    console.log(arr);
+    bid.bids = arr;
+    await Bid.updateOne({ prodId: productid }, bid);
+    res.status(200).send({ error: false, details: { bid: bid } });
+  } catch (error) {
+    console.log(error);
+    res.status(302).send({ error: true });
+  }
+};
+
+const confirmdeal = async (req, res) => {
+  try {
+    const { productid, sellerid, mail, productname, bprice } = req.body;
+    const sellerinfo = await User.findById(sellerid);
+    await Product.deleteOne({ _id: productid });
+    await Bid.deleteOne({ prodId: productid });
+    console.log(sellerinfo);
+    const text = `Hi, I am ${sellerinfo.name}, and I look forward to fixing the deal of ${productname} for Rs.${bprice}.\nYou can find my contact details attached here\nAddress: ${sellerinfo.address}\nPhone  : ${sellerinfo.phone}\nEmail  : ${sellerinfo.mail}`;
+    await sendEmail(mail, "Confirm Deal", text);
+    res.status(200).send({ error: false });
+  } catch (error) {
+    console.log(error);
+    res.status(400).send({ error: true });
+  }
+};
+
+const cancelnotification = async (req, res) => {
+  try {
+    const { prodid, bid } = req.body;
+    var notifitcation = await Bid.findOne({ prodId: prodid });
+    for (let i = 0; i < notifitcation.bids.length; i++) {
+      if (notifitcation.bids[i].buyerId.toString() === bid) {
+        notifitcation.bids[i].cancel = true;
+      }
+    }
+    await Bid.updateOne({ prodId: prodid }, notifitcation);
+
+    var findata = [];
+    const sellerid = notifitcation.sellerId;
+    notifitcation = await Bid.find({ sellerId: sellerid });
+    console.log(notifitcation);
+    for (let i = 0; i < notifitcation.length; i++) {
+      const { id, pimage, pname } = await Product.findById(
+        notifitcation[i].prodId
+      );
+      for (let j = 0; j < notifitcation[i].bids.length; j++) {
+        const { name } = await User.findById(notifitcation[i].bids[j].buyerId);
+        if (notifitcation[i].bids[j].cancel === false) {
+          findata.push({
+            prodId: notifitcation[i].prodId,
+            href: `/buy-product/${notifitcation[i].prodId}/${id}/${notifitcation[i].bids[j].buyerId}`,
+            imageURL: pimage,
+            reg: name,
+            pname: pname,
+            bprice: notifitcation[i].bids[j].bidPrice,
+            cancel: notifitcation[i].bids[j].cancel,
+            bid: notifitcation[i].bids[j].buyerId,
+          });
+        }
+      }
+    }
+    console.log(findata);
+    res.status(200).send({ allNotifications: findata });
+  } catch (error) {
+    res.status(400).send({ error: true });
   }
 };
 
 module.exports = {
+  prodData,
   login,
   logout,
   register,
@@ -226,4 +420,9 @@ module.exports = {
   update,
   displayProd,
   sell,
+  addbid,
+  removebid,
+  fixdeal,
+  confirmdeal,
+  cancelnotification,
 };

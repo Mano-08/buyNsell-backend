@@ -13,7 +13,8 @@ require("dotenv").config();
 app.use(express.urlencoded({ extended: false }));
 mongoose
   .connect(`${process.env.ATLAS_KEY}`)
-  .then(console.log("connected to db"));
+  .then(console.log("connected to db"))
+  .catch((err) => console.log(err));
 
 const PORT = process.env.PORT || 5000;
 

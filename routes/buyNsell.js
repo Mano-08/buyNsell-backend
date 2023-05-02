@@ -14,4 +14,11 @@ router.post("/logout", buyNsell.logout);
 router.post("/allprod", buyNsell.displayProd);
 router.post("/sell", buyNsell.sell);
 router.post("/update", buyNsell.update);
+router.post("/prodData", buyNsell.prodData);
+router.post("/addbid", buyNsell.addbid);
+router.post("/fixdeal", buyNsell.fixdeal);
+router.post("/removebid", buyNsell.removebid);
+router.post("/confirmdeal", buyNsell.confirmdeal);
+router.post("/cancelnotification", buyNsell.cancelnotification);
+
 module.exports = router;

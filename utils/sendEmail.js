@@ -12,7 +12,7 @@ module.exports = async (email, subject, text) => {
 
     await transporter.sendMail({
       from: process.env.USER,
-      to: process.env.DUMMY_SENDER,
+      to: email,
       subject: subject,
       text: text,
     });
