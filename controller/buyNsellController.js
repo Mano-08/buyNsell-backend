@@ -407,6 +407,53 @@ const cancelnotification = async (req, res) => {
   }
 };
 
+const myproduct = async (req, res) => {
+  try {
+    const { userid } = req.body;
+    const mydata = await Product.find({ id: userid });
+    //res.status(200).send({mydata: mydata})
+    var data = [];
+    for (let i = 0; i < mydata.length; i++) {
+      const temp = {
+        id: mydata.id,
+        pname: mydata.pname,
+        pprice: mydata.pprice,
+        pimage: mydata.pimage,
+        preg: mydata.preg,
+      };
+      data.push(temp);
+    }
+    res.status(200).send({ error: false, myproduct: data });
+  } catch (error) {
+    res.status(400).send({ error: true });
+  }
+};
+
+const mybid = async (req, res) => {
+  try {
+    const { userid } = req.body;
+    var arr = [];
+    const data = await Bid.find({});
+    for (let i = 0; i < data.length; i++) {
+      var { pname, pimage, pprice } = await Product.findbyId(data[i].prodId);
+      for (let j = 0; j < data[i].bids.length; j++) {
+        if (data[i].bids[j].buyerId === userid) {
+          const temp = {
+            pname: pname,
+            pimage: pimage,
+            bidPrice: data[i].bids[j].bidPrice,
+            pprice: pprice,
+          };
+          arr.push(temp);
+        }
+      }
+    }
+    res.status(200).send({ error: false, mybid: arr });
+  } catch (error) {
+    res.status(400).send({ error: true });
+  }
+};
+
 module.exports = {
   prodData,
   login,
@@ -425,4 +472,6 @@ module.exports = {
   fixdeal,
   confirmdeal,
   cancelnotification,
+  myproduct,
+  mybid,
 };
