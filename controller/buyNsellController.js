@@ -170,7 +170,6 @@ const delToken = async (req, res) => {
 const fixdeal = async (req, res) => {
   try {
     const { productid, sellerid, buyerid } = req.body;
-    console.log(productid, sellerid, buyerid);
     const { pname, pprice, pimage } = await Product.findById(productid);
     var findata = { pname: pname, productprice: pprice, pimage: pimage };
     const biddata = await Bid.findOne({ prodId: productid });
@@ -192,13 +191,67 @@ const fixdeal = async (req, res) => {
 
 const profile = async (req, res) => {
   try {
-    const user = await User.findOne({ _id: req.body.id });
-    if (!user) {
-      res.status(400).send({ error: true, message: "User not found" });
+    const { id } = req.body;
+    const user = await User.findOne({ _id: id });
+
+    var arr = [];
+    const data = await Bid.find({});
+
+    for (let i = 0; i < data.length; i++) {
+      var { pname, pimage, pprice } = await Product.findById(data[i].prodId);
+      for (let j = 0; j < data[i].bids.length; j++) {
+        if (data[i].bids[j].buyerId.toString() === id) {
+          const temp = {
+            pname: pname,
+            pimage: pimage,
+            bidPrice: data[i].bids[j].bidPrice,
+            bidtime: data[i].bids[j].bidTime,
+            bid: id,
+            pid: data[i].prodId,
+            pprice: pprice,
+          };
+          arr.push(temp);
+        }
+      }
     }
-    res.status(200).send({ erro: false, data: user });
+    const mydata = await Product.find({ id: id });
+
+    var myprodData = [];
+    for (let i = 0; i < mydata.length; i++) {
+      const temp = {
+        id: mydata[i]._id,
+        pname: mydata[i].pname,
+        pprice: mydata[i].pprice,
+        pimage: mydata[i].pimage,
+        preg: mydata[i].preg,
+      };
+      myprodData.push(temp);
+    }
+    if (!user) {
+      res.status(400).send({
+        error: true,
+        message: "User not found",
+        data: user,
+        mybids: arr,
+        myproducts: myprodData,
+      });
+    }
+    res
+      .status(200)
+      .send({ erro: false, data: user, mybids: arr, myproducts: myprodData });
   } catch (error) {
     console.log(error);
+    res.status(400).send({ error: true });
+  }
+};
+
+const deletemyprod = async (req, res) => {
+  try {
+    const { pid } = req.body;
+    await Product.deleteOne({ _id: pid });
+    await Bid.deleteOne({ prodId: pid });
+    res.status(200).send({ error: false });
+  } catch (error) {
     res.status(400).send({ error: true });
   }
 };
@@ -256,7 +309,8 @@ const prodData = async (req, res) => {
     console.log(id);
     const data = await Product.findById(id);
     const bid = await Bid.findOne({ prodId: id });
-    res.status(200).send({ error: false, details: { data, bid } });
+    const { name, mail } = await User.findById(data.id);
+    res.status(200).send({ error: false, details: { data, bid, name, mail } });
   } catch (error) {
     console.log(error);
     res.status(400).send({ error: true });
@@ -407,55 +461,30 @@ const cancelnotification = async (req, res) => {
   }
 };
 
-const myproduct = async (req, res) => {
+const deletemybid = async (req, res) => {
   try {
-    const { userid } = req.body;
-    const mydata = await Product.find({ id: userid });
-    //res.status(200).send({mydata: mydata})
-    var data = [];
-    for (let i = 0; i < mydata.length; i++) {
-      const temp = {
-        id: mydata.id,
-        pname: mydata.pname,
-        pprice: mydata.pprice,
-        pimage: mydata.pimage,
-        preg: mydata.preg,
-      };
-      data.push(temp);
-    }
-    res.status(200).send({ error: false, myproduct: data });
-  } catch (error) {
-    res.status(400).send({ error: true });
-  }
-};
-
-const mybid = async (req, res) => {
-  try {
-    const { userid } = req.body;
+    const { pid, bid } = req.body;
+    console.log(pid, bid);
+    var biddata = await Bid.findOne({ prodId: pid });
     var arr = [];
-    const data = await Bid.find({});
-    for (let i = 0; i < data.length; i++) {
-      var { pname, pimage, pprice } = await Product.findbyId(data[i].prodId);
-      for (let j = 0; j < data[i].bids.length; j++) {
-        if (data[i].bids[j].buyerId === userid) {
-          const temp = {
-            pname: pname,
-            pimage: pimage,
-            bidPrice: data[i].bids[j].bidPrice,
-            pprice: pprice,
-          };
-          arr.push(temp);
-        }
+    for (let i = 0; i < biddata.bids.length; i++) {
+      if (biddata.bids[i].buyerId.toString() !== bid) {
+        arr.push(biddata.bids[i]);
       }
     }
-    res.status(200).send({ error: false, mybid: arr });
+    biddata.bids = arr;
+    await Bid.updateOne({ prodId: pid }, biddata);
+    console.log(biddata);
+    res.status(200).send({ error: false });
   } catch (error) {
+    console.log(error);
     res.status(400).send({ error: true });
   }
 };
 
 module.exports = {
   prodData,
+  deletemybid,
   login,
   logout,
   register,
@@ -470,8 +499,7 @@ module.exports = {
   addbid,
   removebid,
   fixdeal,
+  deletemyprod,
   confirmdeal,
   cancelnotification,
-  myproduct,
-  mybid,
 };

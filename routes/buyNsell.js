@@ -20,5 +20,6 @@ router.post("/fixdeal", buyNsell.fixdeal);
 router.post("/removebid", buyNsell.removebid);
 router.post("/confirmdeal", buyNsell.confirmdeal);
 router.post("/cancelnotification", buyNsell.cancelnotification);
-
+router.post("/deletemyprod", buyNsell.deletemyprod);
+router.post("/deletemybid", buyNsell.deletemybid);
 module.exports = router;
